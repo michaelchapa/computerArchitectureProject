@@ -52,27 +52,52 @@ void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
 void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy)
 {
+<<<<<<< HEAD
     int iNumBlocks, iOffsetSz, iTagSz, iIndexSz, iNumRows, iOverheadSz;
     int iMemSz, iCost;
 
     iCacheSize *= 1024; // changes from KB to Bytes
+=======
+    iCacheSize *= 1024; // Simplifies our calculations, changes from KB to B.
+    int iNumBlocks;
+    int iOffsetSz;
+    int iTagSz;
+    int iIndexSz;
+    int iNumRows;
+    int iOverheadSz;
+    int iMemSz;
+    int iMemSzKB;
+    float fCost;
+        
+>>>>>>> 08ca38d4f98ba82a7440f72f9bbcd3c8e55f9b21
     iNumBlocks = iCacheSize / iBlockSize;
     iOffsetSz = (int) (log10((double) iBlockSize)) / (log10((double) 2));
     iIndexSz = (int) (log10((double) (iCacheSize / ((2 ^ iOffsetSz)) * iAssociativity))) / (log10((double) 2));
     iTagSz = 32 - (iIndexSz + iOffsetSz);
     iNumRows = iNumBlocks / iAssociativity;
     iOverheadSz = (iTagSz + 1) * (2 ^ (iIndexSz - 3)) * iAssociativity;
+<<<<<<< HEAD
     iMemSz = 1234; // TODO
     iCost = iMemSz * 0.05;
+=======
+    
+    iMemSz = iOverheadSz + iCacheSize;
+    
+    iMemSzKB = iMemSz / 1024;
+    
+    fCost = iMemSzKB * 0.05;
+    
+>>>>>>> 08ca38d4f98ba82a7440f72f9bbcd3c8e55f9b21
     printf("***** Cache Calculated Values *****\n");
-    printf("Total # Blocks: %d\nTag Size: %d\nIndex Size: %d\n"
+    printf("Total # Blocks: %d\nTag Size: %d bits\nIndex Size: %d bits\n"
             , iNumBlocks
             , iTagSz
             , iIndexSz);
-    printf("Total # Rows: %d\n Overhead Size: %d\n"
+    printf("Total # Rows: %d\n Overhead Size: %d bytes\n"
             , iNumRows
             , iOverheadSz);
-    printf("Implementation Memory Size: %d\nCost: %d\n"
+    printf("Implementation Memory Size: %d KB (%d bytes) \nCost: $%f\n"
+            , iMemSzKB
             , iMemSz
-            , iCost);
+            , fCost);
 }
