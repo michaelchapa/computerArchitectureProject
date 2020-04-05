@@ -29,6 +29,13 @@ int main(int argc, char** argv) {
         exit(1);
     }
     
+    if (strcmp(szReplacementPolicy, "RR") == 0)
+        szReplacementPolicy = "Round Robin";
+    else if (strcmp(szReplacementPolicy, "RND") == 0)
+        szReplacementPolicy = "Random";
+    else if (strcmp(szReplacementPolicy, "LRU") == 0)
+        szReplacementPolicy = "Least Recently Used";
+    
     PrintHeader(argv[2], iCacheSize, iBlockSize
             , iAssociativity, szReplacementPolicy);
     
@@ -41,12 +48,13 @@ int main(int argc, char** argv) {
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy){
     printf("Cache Simulator CS 3853 Spring 2020 - Group #11\n\n");
+    printf("Trace File: %s\n\n", szFileName);
     printf("Cmd Line: tcsh\n\n"); // TODO: get shell
     printf("***** Cache Input Parameters *****\n\n");
-    printf("Trace File: %s\nCache Size: %d KB\nBlock Size: %d bytes\n"
-            , szFileName, iCacheSize, iBlockSize);
-    printf("Associativity: %d\nPolicy: %s\n"
-            , iAssociativity, szReplacementPolicy);
+    printf("%-31s %d KB\n", "Cache Size:", iCacheSize);
+    printf("%-31s %d bytes\n", "Block Size:", iBlockSize);
+    printf("%-31s %d\n", "Associativity", iAssociativity);
+    printf("%-31s %s\n", "Replacement Policy", szReplacementPolicy);
 }
 
 double LogBaseTwo (int i)
@@ -72,13 +80,17 @@ void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
     
     iOffsetSz = (int) LogBaseTwo(iBlockSize);
     
-    iIndexSz = ((int) LogBaseTwo((iCacheSize / ((2 ^ iOffsetSz)) * iAssociativity)));
+    int a = (int) pow(2.0, (double) iOffsetSz);
+    int b = a * iAssociativity;
+    int c = iCacheSize / b;
+
+    iIndexSz = (int) LogBaseTwo(c);
     
     iTagSz = 32 - (iIndexSz + iOffsetSz);
     
     iNumRows = iNumBlocks / iAssociativity;
     
-    iOverheadSz = (iTagSz + 1) * (2 ^ (iIndexSz - 3)) * iAssociativity;
+    iOverheadSz = (iTagSz + 1) * (int) pow(2.0, (double) (iIndexSz - 3)) * iAssociativity;
     
     iMemSz = iOverheadSz + iCacheSize;
     
@@ -86,16 +98,12 @@ void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
     
     fCost = iMemSzKB * 0.05;
     
-    printf("***** Cache Calculated Values *****\n");
-    printf("Total # Blocks: %d\nTag Size: %d bits\nIndex Size: %d bits\n"
-            , iNumBlocks
-            , iTagSz
-            , iIndexSz);
-    printf("Total # Rows: %d\n Overhead Size: %d bytes\n"
-            , iNumRows
-            , iOverheadSz);
-    printf("Implementation Memory Size: %d KB (%d bytes) \nCost: $%f\n"
-            , iMemSzKB
-            , iMemSz
-            , fCost);
+    printf("\n***** Cache Calculated Values *****\n\n");
+    printf("%-31s %d\n", "Total # Blocks:", iNumBlocks);
+    printf("%-31s %d bits\n", "Tag Size:", iTagSz);
+    printf("%-31s %d bits\n", "Index Size:", iIndexSz);
+    printf("%-31s %d\n", "Total # Rows:", iNumRows);
+    printf("%-31s %d bytes\n", "Overhead Size:", iOverheadSz);
+    printf("%-31s %d KB (%d bytes)\n", "Implementation Memory Size:", iMemSzKB, iMemSz);
+    printf("%-31s $%.2f\n\n", "Cost:", fCost);
 }
