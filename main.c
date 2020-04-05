@@ -6,12 +6,11 @@
 //Prototypes
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
-double LogBaseTwo (int i);
 void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
 
-
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     if(argc != 11){ // Check if enough command line arguments 
         fprintf(stderr, "USAGE: -f <trace file name> -s <cache size in KB>"
                         "-b <block size> -a <associativity> "
@@ -39,7 +38,8 @@ int main(int argc, char** argv) {
 }
 
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
-                , int iAssociativity, char* szReplacementPolicy){
+                , int iAssociativity, char* szReplacementPolicy)
+{
     printf("Cache Simulator CS 3853 Spring 2020 - Group #11\n\n");
     printf("Cmd Line: tcsh\n\n"); // TODO: get shell
     printf("***** Cache Input Parameters *****\n\n");
@@ -49,40 +49,21 @@ void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
             , iAssociativity, szReplacementPolicy);
 }
 
-double LogBaseTwo (int i)
-{
-    return (log10((double) i))/(log10((double) 2));
-}
-
 void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy)
 {
-    iCacheSize *= 1024; // Simplifies our calculations, changes from KB to B.
-    int iNumBlocks;
-    int iOffsetSz;
-    int iTagSz;
-    int iIndexSz;
-    int iNumRows;
-    int iOverheadSz;
-    int iMemSz;
-    int iCost;
-        
+    int iNumBlocks, iOffsetSz, iTagSz, iIndexSz, iNumRows, iOverheadSz;
+    int iMemSz, iCost;
+
+    iCacheSize *= 1024; // changes from KB to Bytes
     iNumBlocks = iCacheSize / iBlockSize;
-    
-    iOffsetSz = (int) LogBaseTwo(iBlockSize);
-    
-    iIndexSz = ((int) LogBaseTwo((iCacheSize / ((2 ^ iOffsetSz)) * iAssociativity)));
-    
+    iOffsetSz = (int) (log10((double) iBlockSize)) / (log10((double) 2));
+    iIndexSz = (int) (log10((double) (iCacheSize / ((2 ^ iOffsetSz)) * iAssociativity))) / (log10((double) 2));
     iTagSz = 32 - (iIndexSz + iOffsetSz);
-    
     iNumRows = iNumBlocks / iAssociativity;
-    
     iOverheadSz = (iTagSz + 1) * (2 ^ (iIndexSz - 3)) * iAssociativity;
-    
     iMemSz = 1234; // TODO
-    
     iCost = iMemSz * 0.05;
-    
     printf("***** Cache Calculated Values *****\n");
     printf("Total # Blocks: %d\nTag Size: %d\nIndex Size: %d\n"
             , iNumBlocks
