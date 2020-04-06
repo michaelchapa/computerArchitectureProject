@@ -1,0 +1,41 @@
+Cache Simulator CS 3853 Spring 2020 - Team 05
+
+Trace File: A-9_new_1.5.pdf.trc
+
+***** Cache Input Parameters *****
+
+Cache Size:                     4096 KB
+Block Size:                     32 bytes
+Associativity:                  1
+Replacement Policy:             Random
+
+***** Cache Calculated Values *****
+
+Total # Blocks:                 131072
+Tag Size:                       10 bits
+Index Size:                     17 bits
+Total # Rows:                   131072
+Overhead Size:                  180224 bytes
+Implementation Memory Size:     4272 KB (4374528 bytes)
+Cost:                           $213.60
+
+010c1517: (2.00)
+01156ef6: (6.00)
+01156efc: (1.00)
+011cde6b: (3.00)
+011cde6e: (3.00)
+011cde71: (2.00)
+011cde73: (6.00)
+011cde79: (1.00)
+011cde7a: (6.00)
+011ce0e9: (3.00)
+011ce0ec: (5.00)
+011cdea8: (5.00)
+011cdead: (2.00)
+011cdeaf: (5.00)
+011cec9a: (1.00)
+011cec9b: (2.00)
+011cec9d: (1.00)
+011cec9e: (1.00)
+011cec9f: (4.00)
+011ceca3: (4.00)
