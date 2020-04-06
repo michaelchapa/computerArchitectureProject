@@ -6,10 +6,9 @@
 //Prototypes
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
-double LogBaseTwo (int i);
+double LogBaseTwo(int i);
 void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
-
 
 int main(int argc, char** argv) 
 {
@@ -54,8 +53,8 @@ void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
     printf("***** Cache Input Parameters *****\n\n");
     printf("%-31s %d KB\n", "Cache Size:", iCacheSize);
     printf("%-31s %d bytes\n", "Block Size:", iBlockSize);
-    printf("%-31s %d\n", "Associativity", iAssociativity);
-    printf("%-31s %s\n", "Replacement Policy", szReplacementPolicy);
+    printf("%-31s %d\n", "Associativity:", iAssociativity);
+    printf("%-31s %s\n", "Replacement Policy:", szReplacementPolicy);
 }
 
 double LogBaseTwo (int i)
@@ -76,9 +75,9 @@ void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
     int iMemSz;
     int iMemSzKB;
     float fCost;
-        
+
     iNumBlocks = iCacheSize / iBlockSize;
-    
+
     iOffsetSz = (int) LogBaseTwo(iBlockSize);
     
     int a = (int) pow(2.0, (double) iOffsetSz);
@@ -86,13 +85,13 @@ void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
     int c = iCacheSize / b;
 
     iIndexSz = (int) LogBaseTwo(c);
-    
+
     iTagSz = 32 - (iIndexSz + iOffsetSz);
-    
+
     iNumRows = iNumBlocks / iAssociativity;
-    
+
     iOverheadSz = (iTagSz + 1) * (int) pow(2.0, (double) (iIndexSz - 3)) * iAssociativity;
-    
+
     iMemSz = iOverheadSz + iCacheSize;
     
     iMemSzKB = iMemSz / 1024;
