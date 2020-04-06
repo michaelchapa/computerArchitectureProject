@@ -11,7 +11,8 @@ void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
 
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     if(argc != 11){ // Check if enough command line arguments 
         fprintf(stderr, "USAGE: -f <trace file name> -s <cache size in KB>"
                         "-b <block size> -a <associativity> "
@@ -46,10 +47,10 @@ int main(int argc, char** argv) {
 }
 
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
-                , int iAssociativity, char* szReplacementPolicy){
-    printf("Cache Simulator CS 3853 Spring 2020 - Group #11\n\n");
+                , int iAssociativity, char* szReplacementPolicy)
+{
+    printf("Cache Simulator CS 3853 Spring 2020 - Team 05\n\n");
     printf("Trace File: %s\n\n", szFileName);
-    printf("Cmd Line: tcsh\n\n"); // TODO: get shell
     printf("***** Cache Input Parameters *****\n\n");
     printf("%-31s %d KB\n", "Cache Size:", iCacheSize);
     printf("%-31s %d bytes\n", "Block Size:", iBlockSize);
