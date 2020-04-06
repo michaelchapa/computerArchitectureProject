@@ -43,12 +43,11 @@ int main(int argc, char** argv)
         szReplacementPolicy = "Least Recently Used";
     // TODO: Add else for <no match>
 
-    ProcessFile(pFile);
     PrintHeader(argv[2], iCacheSize, iBlockSize
             , iAssociativity, szReplacementPolicy);
     CalculateValues(argv[2], iCacheSize, iBlockSize
             , iAssociativity, szReplacementPolicy);
-    
+    ProcessFile(pFile);
     return 0;
 }
 
@@ -56,8 +55,9 @@ void ProcessFile(FILE *pInFile)
 {
     char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230];
     char szAddress[11], szLength[11];
+    int iCount = 0; // can't exceed 20 prints of the addresses
 
-    while(fgets(szInputBuffer, 240, pInFile) != NULL)
+    while((fgets(szInputBuffer, 240, pInFile) != NULL) && iCount < 20)
     {
         // skip line feeds
         if(szInputBuffer[0] == '\n')
@@ -70,6 +70,7 @@ void ProcessFile(FILE *pInFile)
         {
             sscanf(szRest, "%*1s%2s%*2s %s %[^\n]", szLength, szAddress, szRest2);
             printf("%s: (%.2lf)\n", szAddress, (double) atoi(szLength));
+            iCount++;
         }
     }
 
