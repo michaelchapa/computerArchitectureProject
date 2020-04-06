@@ -54,7 +54,7 @@ int main(int argc, char** argv)
 
 void ProcessFile(FILE *pInFile)
 {
-    char szInputBuffer[241], szCommand[11], szRest[230];
+    char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230];
     char szAddress[11], szLength[11];
 
     while(fgets(szInputBuffer, 240, pInFile) != NULL)
@@ -64,10 +64,13 @@ void ProcessFile(FILE *pInFile)
             continue;
 
         // get command and rest of line
-        sscanf(szInputBuffer, "30s %[^\n]", szCommand, szRest);
+        sscanf(szInputBuffer, "%30s %[^\n]", szCommand, szRest);
         
         if(strcmp(szCommand, "EIP") == 0)
-            printf("%s %s\n", szComand, szRest);
+        {
+            sscanf(szRest, "%*1s%2s%*2s %s %[^\n]", szLength, szAddress, szRest2);
+            printf("%s: (%.2lf)\n", szAddress, (double) atoi(szLength));
+        }
     }
 
     fclose(pInFile);
