@@ -1,27 +1,58 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 #include <math.h>
 
 typedef struct Block {
     int iValid;
-    char* szTag;
+    unsigned int uiTag;
+    int iTime;
 } Block;
+
+typedef struct PartsOfAdd {
+    int itagSz;
+    int iIndexSz;
+    int iBlockSize;
+    int iAssociativity;
+    int iRepCase;
+    int rrCount;
+    int iHitCount;
+    int iConflict;
+    int iCompulsory;
+    int iNumBlocks;
+    int iOverheadSz;
+    int iImpMemSz;
+    float fCost;
+    float fEIPCount;
+    float fOverlaps;
+} PartsOfAdd;
+
+typedef struct Address {
+    unsigned int uiOffset;
+    unsigned int uiIndex;
+    unsigned int uiTag;
+} Address;
+
+//Globals
+int iHitCount = 0;
+int iCompulsory = 0;
+int iConflict = 0;
 
 //Prototypes
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
-void ProcessFile(FILE *pInFile);
+void ProcessFile(FILE *pInFile, PartsOfAdd* parts, Block** cacheM);
 double LogBaseTwo(int i);
-void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
-                , int iAssociativity, char* szReplacementPolicy);
+int CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
+                , int iAssociativity, char* szReplacementPolicy, PartsOfAdd* parts);
 Block** initCache();
 void printCache(Block** cacheM, int iAssoc, int iMaxIndex);
-int ConvertStringToInt(char* szHex);
+void accessCache(Block** cacheM, PartsOfAdd* parts, Address address, int iOverlaps, int iTime);
+unsigned int ConvertStringToInt(char* szHex);
+int countOverlaps(int iBlockSize, unsigned int offset, int numBytesAccessed);
+void CalculateSimResults(PartsOfAdd* parts);
 
-int main(int argc, char** argv) 
-{
+int main(int argc, char** argv) {
+
     // Check if valid command line args
     if(argc != 11)
     {
@@ -36,6 +67,7 @@ int main(int argc, char** argv)
     int iAssociativity = atoi(argv[8]);
     char *szReplacementPolicy = argv[10];
     Block **cacheM, tempBlock;
+    int iMaxIndex;
         
     // Check if valid trace file
     if(pFile == NULL)
@@ -57,80 +89,164 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    // PrintHeader(argv[2], iCacheSize, iBlockSize
-    //        , iAssociativity, szReplacementPolicy);
-    CalculateValues(argv[2], iCacheSize, iBlockSize
+    PrintHeader(argv[2], iCacheSize, iBlockSize
             , iAssociativity, szReplacementPolicy);
-    cacheM = initCache();
-    // printCache(cacheM, iAssociativity, 1000); TODO: Update 1000 with iMaxIndex
-    ProcessFile(pFile);
+    
+    struct PartsOfAdd parts;
+    
+    iMaxIndex = CalculateValues(argv[2], iCacheSize, iBlockSize
+            , iAssociativity, szReplacementPolicy, &parts);
+    
+    cacheM = initCache(iAssociativity, iMaxIndex);
+    
+    ProcessFile(pFile, &parts, cacheM);
+    
+    CalculateSimResults(&parts);
+    
+    
+    
+    
+    
+    
     free(cacheM);
 
-    return 0;
+    
+    
+    //TODO: Start function, params = iBlockSize, uiAddress, iIndexSz, iTagSz
+    
+    
+    
+    return (EXIT_SUCCESS);
 }
 
-int ConvertStringToInt(char* szAddress) {
+int CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
+                , int iAssociativity, char* szReplacementPolicy, PartsOfAdd* parts)
+{
+    iCacheSize *= 1024; // Simplifies our calculations, changes from KB to B.
+    int iNumBlocks;
+    int iOffsetSz;
+    int iTagSz;
+    int iIndexSz;
+    int iNumRows;
+    int iOverheadSz;
+    int iMemSz;
+    int iMemSzKB;
+    float fCost;
+
+    iNumBlocks = iCacheSize / iBlockSize;
+    iOffsetSz = (int) LogBaseTwo(iBlockSize);
+    int a = (int) pow(2.0, (double) iOffsetSz);
+    int b = a * iAssociativity;
+    int c = iCacheSize / b;
+    iIndexSz = (int) LogBaseTwo(c);
+    iTagSz = 32 - (iIndexSz + iOffsetSz);
+    iNumRows = iNumBlocks / iAssociativity;
+    iOverheadSz = (iTagSz + 1) * (int) pow(2.0, (double) (iIndexSz - 3)) * iAssociativity;
+    iMemSz = iOverheadSz + iCacheSize;
+    iMemSzKB = iMemSz / 1024;
+    fCost = iMemSzKB * 0.05;
+    
+    parts->iIndexSz = iIndexSz;
+    parts->itagSz = iTagSz;
+    parts->iBlockSize = iBlockSize;
+    parts->iAssociativity = iAssociativity;
+    parts->rrCount = 0;
+    parts->iNumBlocks = iNumBlocks;
+    parts->iOverheadSz = iOverheadSz;
+    parts->iImpMemSz = iMemSzKB;
+    parts->fCost = fCost;
+    parts->fEIPCount = 0.0;
+    parts->fOverlaps = 0.0;
+    
+    if (strcmp(szReplacementPolicy, "Round Robin") == 0)
+        parts->iRepCase = 1;
+    else if (strcmp(szReplacementPolicy, "Random") == 0)
+        parts->iRepCase = 2;
+    else if (strcmp(szReplacementPolicy, "Least Recently Used") == 0)
+        parts->iRepCase = 3;
+    
+    printf("\n***** Cache Calculated Values *****\n\n");
+    printf("%-31s %d\n", "Total # Blocks:", iNumBlocks);
+    printf("%-31s %d bits\n", "Tag Size:", iTagSz);
+    printf("%-31s %d bits\n", "Index Size:", iIndexSz);
+    printf("%-31s %d\n", "Total # Rows:", iNumRows);
+    printf("%-31s %d bytes\n", "Overhead Size:", iOverheadSz);
+    printf("%-31s %d KB (%d bytes)\n", "Implementation Memory Size:", iMemSzKB, iMemSz);
+    printf("%-31s $%.2f\n\n", "Cost:", fCost);
+    
+    return iNumRows;
+}
+
+unsigned int ConvertStringToInt(char* szAddress) {
     const char *hexString = szAddress;
-    return (int) strtol(hexString, NULL, 16);
+    return (unsigned int) strtol(hexString, NULL, 16);
 }
 
-Block** initCache(int iAssoc, int iMaxIndex){
-    int i, j;
-    Block tempBlock;
-    Block **cacheM2 = (Block **) malloc(sizeof(Block) * 1000); // allocates indexes
-    tempBlock.iValid = 0;
-    tempBlock.szTag = "Banana";
-
-    for(i = 0; i < 1000; i++){ // Change 1000 to iMaxIndex
-        cacheM2[i] = (Block *) malloc(sizeof(Block) * iAssoc); // allocates set
-        for(j = 0; j < iAssoc; j++){
-            *(*(cacheM2 + i) + j) = tempBlock;
-        }
-    }
-    return cacheM2;
+double LogBaseTwo (int i)
+{
+    return (log10((double) i))/(log10((double) 2));
 }
 
-void printCache(Block** cacheM, int iAssoc, int iMaxIndex){
-    Block tempBlock;
-    int i, j;
-
-    for(i = 0; i < iMaxIndex; i++){
-        for(j = 0; j < iAssoc; j++){
-            tempBlock = *(*(cacheM + i) + j);
-            printf("(%d, %d): %d, %s\n", i, j, tempBlock.iValid, tempBlock.szTag);
-        }
+void constructAddress(int iBlockSize, unsigned int uiAddress
+                , int iTagSz, int iIndexSz, Address* address)
+{
+    unsigned int mask;
+    unsigned int indexMask;
+    unsigned int uiOffset;
+    unsigned int uiTemp;
+    
+    switch (iBlockSize)
+    {
+        case 4:
+            mask = 0x00000003;
+            address->uiOffset = uiAddress & mask;
+            address->uiIndex = uiAddress >> 2;
+            indexMask = (unsigned int) (pow(2.0, (double) iIndexSz) - 1.0);
+            uiTemp = address->uiIndex;
+            address->uiIndex = uiTemp & indexMask;
+            address->uiTag = uiAddress >> iIndexSz;
+            break;
+            
+        case 8:
+            mask = 0x00000007;
+            address->uiOffset = uiAddress & mask;
+            address->uiIndex = uiAddress >> 3;
+            indexMask = (unsigned int) (pow(2.0, (double) iIndexSz) - 1.0);
+            uiTemp = address->uiIndex;
+            address->uiIndex = uiTemp & indexMask;
+            address->uiTag = uiAddress >> iIndexSz;
+            break;
+            
+        case 16:
+            mask = 0x0000000F;
+            address->uiOffset = uiAddress & mask;
+            address->uiIndex = uiAddress >> 4;
+            indexMask = (unsigned int) (pow(2.0, (double) iIndexSz) - 1.0);
+            uiTemp = address->uiIndex;
+            address->uiIndex = uiTemp & indexMask;
+            address->uiTag = uiAddress >> iIndexSz;
+            break;
+            
+        case 32:
+            mask = 0x0000001F;
+            address->uiOffset = uiAddress & mask;
+            address->uiIndex = uiAddress >> 5;
+            indexMask = (unsigned int) (pow(2.0, (double) iIndexSz) - 1.0);
+            uiTemp = address->uiIndex;
+            address->uiIndex = uiTemp & indexMask;
+            address->uiTag = uiAddress >> iIndexSz;
+            break;
+            
+        case 64:
+            mask = 0x0000003F;
+            address->uiOffset = uiAddress & mask;
+            address->uiIndex = uiAddress >> 6;
+            indexMask = (unsigned int) (pow(2.0, (double) iIndexSz) - 1.0);
+            uiTemp = address->uiIndex;
+            address->uiIndex = uiTemp & indexMask;
+            address->uiTag = uiAddress >> iIndexSz;
+            break;
     }
-}
-
-void ProcessFile(FILE *pInFile) {
-    char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230];
-    char szAddress[11], szLength[11], dstM[9], srcM[9], garbage1[9], garbage2[9];
-    int iCount = 0, iAddress;
-
-    while((fgets(szInputBuffer, 240, pInFile) != NULL) && iCount < 20) {
-        // skip line feeds
-        if(szInputBuffer[0] == '\n')
-            continue;
-
-        // get command and rest of line
-        sscanf(szInputBuffer, "%30s %[^\n]", szCommand, szRest);
-        
-        if(strcmp(szCommand, "EIP") == 0){ // Instruction line
-            sscanf(szRest, "%*1s%2s%*2s %s %[^\n]", szLength, szAddress, szRest2);
-            iAddress = ConvertStringToInt(szAddress);
-            printf("%d\n", iAddress);
-            // printf("%s: (%.2lf)\n", szAddress, (double) atoi(szLength));
-        }
-        else if(strcmp(szCommand, "dstM:") == 0){ // Address line
-            sscanf(szRest, "%s %s %s %s %[^\n]"
-                , dstM, garbage1, garbage2, srcM, szRest2);
-            // printf("dstM: %s, srcM: %s\n", dstM, srcM);
-        }
-        iCount++;
-    }
-    printf("%d\n", iCount);
-
-    fclose(pInFile);
 }
 
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
@@ -145,53 +261,226 @@ void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
     printf("%-31s %s\n", "Replacement Policy:", szReplacementPolicy);
 }
 
-double LogBaseTwo (int i)
+void ProcessFile(FILE *pInFile, PartsOfAdd* parts, Block** cacheM) 
 {
-    return (log10((double) i))/(log10((double) 2));
+    char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230], szRest4[230], szCommand2[11];
+    char szAddress[11], szLength[11], dstM[9], srcM[9], garbage1[9], garbage2[9];
+    int iAccessCount = 0;
+    int iCount = 0;
+    unsigned int uiAddress;
+    struct Address address;
+    int iOverlaps;
+
+    while(fgets(szInputBuffer, 240, pInFile) != NULL) 
+    {
+        // skip line feeds
+        if(szInputBuffer[0] == '\n')
+            continue;
+
+        // get command and rest of line
+        sscanf(szInputBuffer, "%30s %[^\n]", szCommand, szRest);
+        
+        if(strcmp(szCommand, "EIP") == 0){ // Instruction line
+            sscanf(szRest, "%*1s%2s%*2s %s %[^\n]", szLength, szAddress, szRest2);
+//            int spaces = atoi(szLength);
+//            int calc = (spaces);
+//            char szRest3[calc];
+//            sscanf(szRest2, "%*s %s %[^\n]",calc, szRest3, szCommand2, szRest4);
+//            //char* token = strtok(szRest2, " ");
+//            printf("%s\n", szCommand2);
+            uiAddress = ConvertStringToInt(szAddress);
+            constructAddress(parts->iBlockSize, uiAddress, parts->itagSz, parts->iIndexSz, &address);
+            // call accessCache;
+            parts->fEIPCount += 1.0;
+            iOverlaps = countOverlaps(parts->iBlockSize, address.uiOffset, atoi(szLength));
+            //printf("%s: %d\n", "Overlaps", iOverlaps);
+            accessCache(cacheM, parts, address, iOverlaps, iCount);
+			
+        }
+        else if(strcmp(szCommand, "dstM:") == 0){ // Address line
+            sscanf(szRest, "%s %s %s %s %[^\n]"
+                , dstM, garbage1, garbage2, srcM, szRest2);
+            if (!(strcmp(dstM, "00000000") == 0))
+            {
+                uiAddress = ConvertStringToInt(dstM);
+                constructAddress(parts->iBlockSize, uiAddress, parts->itagSz, parts->iIndexSz, &address);
+                // call accessCache;
+                iOverlaps = countOverlaps(parts->iBlockSize, address.uiOffset, 4);
+                //printf("%s: %d\n", "Overlaps", iOverlaps);
+                accessCache(cacheM, parts, address, iOverlaps, iCount);
+            }
+            if (!(strcmp(srcM, "00000000") == 0))
+            {
+                uiAddress = ConvertStringToInt(srcM);
+                constructAddress(parts->iBlockSize, uiAddress, parts->itagSz, parts->iIndexSz, &address);
+                // call accessCache;
+                iOverlaps = countOverlaps(parts->iBlockSize, address.uiOffset, 4);
+                //printf("%s: %d\n", "Overlaps", iOverlaps);
+                accessCache(cacheM, parts, address, iOverlaps, iCount);
+            }
+        }
+        iCount++;
+    }
+    parts->iCompulsory = iCompulsory;
+    parts->iConflict = iConflict;
+    parts->iHitCount = iHitCount;
+    //printf("%s: %d\n%s: %d\n%s: %d\n", "iHitCount", iHitCount, "iCompulsory", iCompulsory, "iConflict", iConflict);
+    //printf("%s: %d\n", "Access Count", iHitCount + iCompulsory + iConflict);
+    
+
+    //printf("%d\n", iCount); //TODO Remove this later
+
+    fclose(pInFile);
 }
 
-void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
-                , int iAssociativity, char* szReplacementPolicy)
+Block** initCache(int iAssoc, int iMaxIndex){
+    int i, j;
+    Block tempBlock;
+    Block **cacheM2 = (Block **) malloc(sizeof(Block) * iMaxIndex); // allocates indexes
+    tempBlock.iValid = 0;
+    tempBlock.uiTag = 0;
+
+    for(i = 0; i < iMaxIndex; i++){
+        cacheM2[i] = (Block *) malloc(sizeof(Block) * iAssoc); // allocates set
+        for(j = 0; j < iAssoc; j++){
+            *(*(cacheM2 + i) + j) = tempBlock;
+        }
+    }
+    return cacheM2;
+}
+
+int countOverlaps(int iBlockSize, unsigned int offset, int numBytesAccessed)
 {
-    iCacheSize *= 1024; // Simplifies our calculations, changes from KB to B.
-    int iNumBlocks;
-    int iOffsetSz;
-    int iTagSz;
-    int iIndexSz;
-    int iNumRows;
-    int iOverheadSz;
-    int iMemSz;
-    int iMemSzKB;
-    float fCost;
+    int overlap = 1;
+    int accessLength = (int) offset + numBytesAccessed;
+    // printf("%s : %u, %d\n", "Offset, numBytes", offset, numBytesAccessed);
+    int leftover = accessLength % iBlockSize;
 
-    iNumBlocks = iCacheSize / iBlockSize;
+    while (accessLength != leftover)
+    {
+        accessLength -= iBlockSize;
+        overlap += 1;
+    }
 
-    iOffsetSz = (int) LogBaseTwo(iBlockSize);
+    return overlap; 
+
+}
+
+void accessCache(Block** cacheM, PartsOfAdd* parts, Address address, int iOverlaps, int iTime)
+{
+    Block tempBlock;
+    int iRow = (int) address.uiIndex;
+    int i, j;
+    int jAssoc = parts->iAssociativity; // i = indexRow, 
+    for(i = iRow; i < (iOverlaps + iRow); i++)
+    {
+        for (j = 0; j < jAssoc; j++)
+        {
+            tempBlock = *(*(cacheM + iRow) + j);
+            if (tempBlock.iValid == 1)
+            {
+                // Valid Bit is 1, begin checking Tag
+                if (tempBlock.uiTag == address.uiTag)
+                {
+                    // Tag exists and matches, this is a hit
+                    iHitCount += 1;
+                    return;
+                }
+                else
+                {
+                    // Valid Bit is 1, but Tag does not match
+                    // Check next block in row
+                    continue;
+                }
+            }
+            else
+            {
+                // Valid Bit is 0, write data
+                iCompulsory += 1;
+                tempBlock.uiTag = address.uiTag;
+                tempBlock.iValid = 1;
+                tempBlock.iTime = iTime;
+                *(*(cacheM + i) + j) = tempBlock;
+                return;
+                //TODO: add LRU functionality
+            }
+        }
+        int rnd, k, lruBlock;
+        int lruReplace = iTime;
+        iConflict += 1;
+        switch (parts->iRepCase)
+        {
+            case 1:
+                if (parts->rrCount = parts->iAssociativity)
+                {
+                    parts->rrCount = 1;
+                    tempBlock.uiTag = address.uiTag;
+                    tempBlock.iValid = 1;
+                    tempBlock.iTime = iTime;
+                    *(*(cacheM + i) + 0) = tempBlock;
+                }
+                else
+                {
+                    tempBlock.uiTag = address.uiTag;
+                    tempBlock.iValid = 1;
+                    tempBlock.iTime = iTime;
+                    *(*(cacheM + i) + parts->rrCount) = tempBlock;
+                    parts->rrCount += 1;
+                }
+                break;
+            case 2:
+                rnd = rand();
+                int rndReplace = rnd % parts->iAssociativity;
+                tempBlock.uiTag = address.uiTag;
+                tempBlock.iValid = 1;
+                tempBlock.iTime = iTime;
+                *(*(cacheM + i) + rndReplace) = tempBlock;
+                break;
+            case 3:
+                for (k = 0; k < parts->iAssociativity; k++)
+                {
+                    if (tempBlock.iTime < lruReplace)
+                    {
+                        lruReplace = tempBlock.iTime;
+                        lruBlock = k;
+                    }
+                }
+                tempBlock.uiTag = address.uiTag;
+                tempBlock.iValid = 1;
+                tempBlock.iTime = iTime;
+                *(*(cacheM + i) + lruBlock) = tempBlock;
+                break;
+        }
+    }  
+}
+
+void CalculateSimResults(PartsOfAdd* parts)
+{
+    int iMissCount = parts->iConflict + parts->iCompulsory;
+    float fAccessCount = parts->iHitCount + iMissCount;
+    float fHitRate = (float) (iHitCount / fAccessCount) * 100.0;
+    float fMissRate = 100.0 - fHitRate;
+    int top = parts->iNumBlocks - parts->iCompulsory;
+    int bottom = parts->iBlockSize * parts->iOverheadSz;
+    int temp = bottom / 1024;
+    float fUnusedKB = top / temp;
+    float fUnusedPercent = (fUnusedKB / (float) parts->iImpMemSz) * 100.0;
+    float fWaste = (fUnusedPercent / 100.0) * parts->fCost;
+    int iUnusedBlocks = (fUnusedPercent / 100.0) * parts->iNumBlocks;
+    double test = ceil(parts->iBlockSize/4);
+    float fCPI = ((float) parts->iHitCount + (3.0 * (float) iMissCount * (float) test)) / parts->fEIPCount;
     
-    int a = (int) pow(2.0, (double) iOffsetSz);
-    int b = a * iAssociativity;
-    int c = iCacheSize / b;
-
-    iIndexSz = (int) LogBaseTwo(c);
-
-    iTagSz = 32 - (iIndexSz + iOffsetSz);
-
-    iNumRows = iNumBlocks / iAssociativity;
-
-    iOverheadSz = (iTagSz + 1) * (int) pow(2.0, (double) (iIndexSz - 3)) * iAssociativity;
-
-    iMemSz = iOverheadSz + iCacheSize;
+    printf("***** Cache Simulation Results *****\n\n");
+    printf("%-31s %.0f\n", "Total Cache Accesses:", fAccessCount); //TODO: calcTotalCacheAccesses
+    printf("%-31s %d\n", "Cache Hits:", parts->iHitCount); //TODO: calcCacheHits
+    printf("%-31s %d\n", "Cache Misses:", iMissCount); //TODO: calcCacheMisses
+    printf("%-31s %d\n", "--- Compulsory Misses:", iCompulsory); //TODO: calcCompulseMisses
+    printf("%-31s %d\n", "--- Conflict Misses:", iConflict); //TODO: calcConflictMisses
     
-    iMemSzKB = iMemSz / 1024;
-    
-    fCost = iMemSzKB * 0.05;
-    
-    printf("\n***** Cache Calculated Values *****\n\n");
-    printf("%-31s %d\n", "Total # Blocks:", iNumBlocks);
-    printf("%-31s %d bits\n", "Tag Size:", iTagSz);
-    printf("%-31s %d bits\n", "Index Size:", iIndexSz);
-    printf("%-31s %d\n", "Total # Rows:", iNumRows);
-    printf("%-31s %d bytes\n", "Overhead Size:", iOverheadSz);
-    printf("%-31s %d KB (%d bytes)\n", "Implementation Memory Size:", iMemSzKB, iMemSz);
-    printf("%-31s $%.2f\n\n", "Cost:", fCost);
+    printf("\n***** ***** Cache Hit & Miss Rate ***** *****\n\n");
+    printf("%-31s %.4f%s\n", "Hit Rate:", fHitRate,"%"); //TODO calcHitRate
+    printf("%-31s %.4f%s\n", "Miss Rate:", fMissRate, "%"); //TODO 1 - HitRate
+    printf("%-31s %.2f %s\n\n","CPI:", fCPI, "Cycles/Instruction"); //TODO: calcCyclesPerInstruct
+    printf("%-31s %.2f KB / %.2f KB %s %.2f%s $%.2f\n", "Unused Cache Space:", fUnusedKB, (float) parts->iImpMemSz, "=", fUnusedPercent, "% Waste:", fWaste);
+    printf("%-31s %d / %d\n", "Unused Cache Blocks:", iUnusedBlocks, parts->iNumBlocks);
 }
