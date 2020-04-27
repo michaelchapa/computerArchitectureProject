@@ -4,6 +4,11 @@
 #include <unistd.h>
 #include <math.h>
 
+typedef struct Block {
+    int iValid;
+    char* szTag;
+} Block;
+
 //Prototypes
 void PrintHeader(char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
@@ -11,10 +16,13 @@ void ProcessFile(FILE *pInFile);
 double LogBaseTwo(int i);
 void CalculateValues (char* szFileName, int iCacheSize, int iBlockSize
                 , int iAssociativity, char* szReplacementPolicy);
+Block** initCache();
+void printCache(Block** cacheM, int iAssoc, int iMaxIndex);
+int ConvertStringToInt(char* szHex);
 
 int main(int argc, char** argv) 
 {
-    // Check if enough command line args
+    // Check if valid command line args
     if(argc != 11)
     {
         fprintf(stderr, "USAGE: -f <trace file name> -s <cache size in KB>"
@@ -27,7 +35,8 @@ int main(int argc, char** argv)
     int iCacheSize = atoi(argv[4]), iBlockSize = atoi(argv[6]);
     int iAssociativity = atoi(argv[8]);
     char *szReplacementPolicy = argv[10];
-    
+    Block **cacheM, tempBlock;
+        
     // Check if valid trace file
     if(pFile == NULL)
     {
@@ -35,30 +44,70 @@ int main(int argc, char** argv)
         exit(1);
     }
     
+    // check replacement algorithm
     if (strcmp(szReplacementPolicy, "RR") == 0)
         szReplacementPolicy = "Round Robin";
     else if (strcmp(szReplacementPolicy, "RND") == 0)
         szReplacementPolicy = "Random";
     else if (strcmp(szReplacementPolicy, "LRU") == 0)
         szReplacementPolicy = "Least Recently Used";
-    // TODO: Add else for <no match>
+    else {
+        fprintf(stderr, "Invalid Replacement policy: %s\n"
+            , szReplacementPolicy);
+        exit(1);
+    }
 
-    PrintHeader(argv[2], iCacheSize, iBlockSize
-            , iAssociativity, szReplacementPolicy);
+    // PrintHeader(argv[2], iCacheSize, iBlockSize
+    //        , iAssociativity, szReplacementPolicy);
     CalculateValues(argv[2], iCacheSize, iBlockSize
             , iAssociativity, szReplacementPolicy);
+    cacheM = initCache();
+    // printCache(cacheM, iAssociativity, 1000); TODO: Update 1000 with iMaxIndex
     ProcessFile(pFile);
+    free(cacheM);
+
     return 0;
 }
 
-void ProcessFile(FILE *pInFile)
-{
-    char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230];
-    char szAddress[11], szLength[11];
-    int iCount = 0; // can't exceed 20 prints of the addresses
+int ConvertStringToInt(char* szAddress) {
+    const char *hexString = szAddress;
+    return (int) strtol(hexString, NULL, 16);
+}
 
-    while((fgets(szInputBuffer, 240, pInFile) != NULL) && iCount < 20)
-    {
+Block** initCache(int iAssoc, int iMaxIndex){
+    int i, j;
+    Block tempBlock;
+    Block **cacheM2 = (Block **) malloc(sizeof(Block) * 1000); // allocates indexes
+    tempBlock.iValid = 0;
+    tempBlock.szTag = "Banana";
+
+    for(i = 0; i < 1000; i++){ // Change 1000 to iMaxIndex
+        cacheM2[i] = (Block *) malloc(sizeof(Block) * iAssoc); // allocates set
+        for(j = 0; j < iAssoc; j++){
+            *(*(cacheM2 + i) + j) = tempBlock;
+        }
+    }
+    return cacheM2;
+}
+
+void printCache(Block** cacheM, int iAssoc, int iMaxIndex){
+    Block tempBlock;
+    int i, j;
+
+    for(i = 0; i < iMaxIndex; i++){
+        for(j = 0; j < iAssoc; j++){
+            tempBlock = *(*(cacheM + i) + j);
+            printf("(%d, %d): %d, %s\n", i, j, tempBlock.iValid, tempBlock.szTag);
+        }
+    }
+}
+
+void ProcessFile(FILE *pInFile) {
+    char szInputBuffer[241], szCommand[11], szRest[230], szRest2[230];
+    char szAddress[11], szLength[11], dstM[9], srcM[9], garbage1[9], garbage2[9];
+    int iCount = 0, iAddress;
+
+    while((fgets(szInputBuffer, 240, pInFile) != NULL) && iCount < 20) {
         // skip line feeds
         if(szInputBuffer[0] == '\n')
             continue;
@@ -66,13 +115,20 @@ void ProcessFile(FILE *pInFile)
         // get command and rest of line
         sscanf(szInputBuffer, "%30s %[^\n]", szCommand, szRest);
         
-        if(strcmp(szCommand, "EIP") == 0)
-        {
+        if(strcmp(szCommand, "EIP") == 0){ // Instruction line
             sscanf(szRest, "%*1s%2s%*2s %s %[^\n]", szLength, szAddress, szRest2);
-            printf("%s: (%.2lf)\n", szAddress, (double) atoi(szLength));
-            iCount++;
+            iAddress = ConvertStringToInt(szAddress);
+            printf("%d\n", iAddress);
+            // printf("%s: (%.2lf)\n", szAddress, (double) atoi(szLength));
         }
+        else if(strcmp(szCommand, "dstM:") == 0){ // Address line
+            sscanf(szRest, "%s %s %s %s %[^\n]"
+                , dstM, garbage1, garbage2, srcM, szRest2);
+            // printf("dstM: %s, srcM: %s\n", dstM, srcM);
+        }
+        iCount++;
     }
+    printf("%d\n", iCount);
 
     fclose(pInFile);
 }
